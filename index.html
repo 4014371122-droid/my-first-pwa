@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>目標手帳 Pro - 個人每日目標打卡與反思手帳</title>
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="目標手帳">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* 原生 App 行動優化規範 */
+        * {
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        input, textarea, select {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+            font-size: 16px !important; /* 避免 iOS Safari 點擊聚焦時自動放大畫面 */
+        }
+
+        /* 觸控按壓回饋動畫 */
+        .btn-touch {
+            transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease;
+        }
+        .btn-touch:active {
+            transform: scale(0.95) !important;
+            opacity: 0.88 !important;
+        }
+
+        /* Safe Area Padding 支持（針對 iPhone 瀏海與底部 Home Bar） */
+        .safe-pt { padding-top: max(1rem, env(safe-area-inset-top)); }
+        .safe-pb { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+
+        /* 隱藏滾動條但保持滾動 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 卡片玻璃質感與漸變 */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .dark .glass-card {
+            background: rgba(30, 41, 59, 0.85);
+        }
+
+        /* 自訂動畫 */
+        @keyframes pulseCheck {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+        .animate-pop {
+            animation: pulseCheck 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col relative bg-slate-50 dark:bg-slate-900 shadow-2xl transition-colors duration-300">
+
+        <!-- 頂部導覽列 Header -->
+        <header class="sticky top-0 z-30 glass-card border-b border-slate-200/80 dark:border-slate-800/80 safe-pt px-5 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300">
+                        目標手帳 <span class="text-xs px-1.5 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900/60 text-brand-600 dark:text-brand-400 font-bold ml-1">PRO</span>
+                    </h1>
+                    <p id="current-date-text" class="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5"></p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- PWA 安裝按鈕（適時顯示） -->
+                <button id="pwa-install-btn" class="hidden btn-touch px-2.5 py-1.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-semibold flex items-center gap-1 border border-brand-500/20">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    安裝 App
+                </button>
+
+                <!-- 深色 / 淺色模式切換 -->
+                <button id="theme-toggle-btn" class="btn-touch p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition">
+                    <svg id="sun-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <svg id="moon-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 內容主體區域 -->
+        <main class="flex-1 px-4 py-5 space-y-6 overflow-y-auto no-scrollbar">
+
+            <!-- 今日統計與進度儀表板 -->
+            <section class="bg-gradient-to-br from-brand-600 via-brand-700 to-indigo-800 rounded-3xl p-5 text-white shadow-xl shadow-brand-500/15 relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                
+                <div class="flex items-center justify-between mb-4 relative z-10">
+                    <div>
+                        <span class="text-xs font-semibold uppercase tracking-wider text-brand-200">Today's Progress</span>
+                        <h2 class="text-2xl font-black mt-0.5 tracking-tight flex items-center gap-2">
+                            <span id="completion-rate-text">0%</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md font-normal text-white" id="completion-status-badge">加油中</span>
+                        </h2>
+                    </div>
+                    <!-- 連續打卡天數勳章 -->
+                    <div class="flex items-center gap-1.5 bg-black/20 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10">
+                        <span class="text-xl">🔥</span>
+                        <div class="text-right">
+                            <div id="streak-count" class="text-lg font-black leading-none">0</div>
+                            <div class="text-[10px] text-brand-200 font-medium leading-none mt-0.5">連續天數</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 進度條 -->
+                <div class="space-y-1.5 relative z-10">
+                    <div class="w-full bg-black/20 rounded-full h-3 overflow-hidden p-0.5 border border-white/10">
+                        <div id="progress-bar" class="bg-gradient-to-r from-emerald-300 to-teal-200 h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-brand-100 font-medium pt-0.5">
+                        <span id="goals-count-text">已完成 0 / 0 個目標</span>
+                        <span id="motivation-quote" class="italic opacity-90">「持之以恆，必有所成」</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 分類頁籤與新增按鈕 -->
+            <section class="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-1">
+                <div id="category-filters" class="flex gap-2 overflow-x-auto no-scrollbar">
+                    <!-- 分類按鈕動態渲染 -->
+                </div>
+                <button id="open-add-modal-btn" class="btn-touch shrink-0 px-3.5 py-2 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-brand-600/20">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                    <span>新增目標</span>
+                </button>
+            </section>
+
+            <!-- 目標打卡卡片列表 -->
+            <section class="space-y-3">
+                <div class="flex items-center justify-between px-1">
+                    <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">每日打卡清單</h3>
+                    <span id="filter-status-label" class="text-xs text-slate-400 dark:text-slate-500">全部目標</span>
+                </div>
+
+                <div id="goals-container" class="space-y-3">
+                    <!-- 目標卡片將動態注入 -->
+                </div>
+
+                <!-- 空狀態提示 -->
+                <div id="empty-state" class="hidden text-center py-12 px-4 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                    <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl text-slate-400">
+                        🎯
+                    </div>
+                    <h4 class="font-bold text-slate-700 dark:text-slate-300 text-base">尚未設定任何目標</h4>
+                    <p class="text-slate-500 dark:text-slate-400 text-xs mt-1 max-w-xs mx-auto">點擊上方的「新增目標」按鈕，建立專屬你的每日習慣打卡計畫！</p>
+                </div>
+            </section>
+
+            <!-- 今日反思手帳專區 -->
+            <section class="glass-card rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">✍️</span>
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-800 dark:text-slate-200">今日心得與反思</h3>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400">記錄今天的收穫、感恩或改進之處</p>
+                        </div>
+                    </div>
+                    <!-- 今日心情選擇器 -->
+                    <div id="mood-selector" class="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                        <button data-mood="🔥" class="btn-touch p-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition">🔥</button>
+                        <button data-mood="😊" class="btn-touch p-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition">😊</button>
+                        <button data-mood="😐" class="btn-touch p-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition">😐</button>
+                        <button data-mood="🌧️" class="btn-touch p-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition">🌧️</button>
+                    </div>
+                </div>
+
+                <textarea id="daily-reflection-input" rows="3" placeholder="今天過得如何？寫下幾句反思吧..." 
+                    class="w-full px-3.5 py-2.5 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 border border-transparent focus:border-brand-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition text-sm text-slate-800 dark:text-slate-200 resize-none"></textarea>
+
+                <div class="flex justify-end items-center gap-2">
+                    <span id="reflection-saved-toast" class="text-xs text-emerald-500 font-medium opacity-0 transition-opacity">已自動儲存 ✓</span>
+                    <button id="save-reflection-btn" class="btn-touch px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-semibold shadow">
+                        儲存筆記
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <!-- 底部導覽選單 (Tab Bar) -->
+        <nav class="sticky bottom-0 z-30 glass-card border-t border-slate-200/80 dark:border-slate-800/80 safe-pb px-6 py-2">
+            <div class="flex justify-around items-center">
+                <button class="tab-btn btn-touch flex flex-col items-center gap-1 text-brand-600 dark:text-brand-400" data-tab="today">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span class="text-[10px] font-bold">今日打卡</span>
+                </button>
+                <button class="tab-btn btn-touch flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" data-tab="history">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span class="text-[10px] font-bold">歷史日誌</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- 歷史日誌 Modal / View Overlay -->
+        <div id="history-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex flex-col justify-end transition-opacity duration-200">
+            <div class="bg-white dark:bg-slate-900 rounded-t-3xl p-5 max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl safe-pb">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <h3 class="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        📅 歷史打卡與反思
+                    </h3>
+                    <button id="close-history-btn" class="btn-touch p-2 text-slate-400 hover:text-slate-600 rounded-full">
+                        ✕
+                    </button>
+                </div>
+                <div id="history-list-container" class="space-y-3">
+                    <!-- 歷史紀錄列表 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 新增/編輯目標 Modal -->
+        <div id="add-goal-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
+            <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 space-y-5 shadow-2xl safe-pb animate-pop">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-extrabold text-lg text-slate-800 dark:text-slate-100">建立新習慣目標</h3>
+                    <button id="close-add-modal-btn" class="btn-touch p-1 text-slate-400 hover:text-slate-600 rounded-full">✕</button>
+                </div>
+
+                <form id="add-goal-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">目標名稱</label>
+                        <input type="text" id="goal-title-input" placeholder="例如：每日閱讀 30 頁、晨跑 5 公里" required
+                            class="w-full px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition text-slate-800 dark:text-slate-100">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">分類標籤</label>
+                            <select id="goal-category-select" class="w-full px-3 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-800 dark:text-slate-100">
+                                <option value="健康">💪 健康運動</option>
+                                <option value="學習">📚 學習閱讀</option>
+                                <option value="工作">💼 職涯工作</option>
+                                <option value="生活">🌱 生活習慣</option>
+                                <option value="心靈">🧘 心靈正念</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase mb-1.5">代表圖示</label>
+                            <select id="goal-icon-select" class="w-full px-3 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-800 dark:text-slate-100">
+                                <option value="🏃">🏃 運動</option>
+                                <option value="📖">📖 閱讀</option>
+                                <option value="💧">💧 喝水</option>
+                                <option value="🧘">🧘 冥想</option>
+                                <option value="💻">💻 編程/工作</option>
+                                <option value="🍎">🍎 健康飲食</option>
+                                <option value="😴">😴 早睡早起</option>
+                                <option value="🎨">🎨 創作/興趣</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex gap-3">
+                        <button type="button" id="cancel-add-modal-btn" class="btn-touch flex-1 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 font-semibold text-slate-600 dark:text-slate-300 text-sm">
+                            取消
+                        </button>
+                        <button type="submit" class="btn-touch flex-1 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 font-bold text-white text-sm shadow-lg shadow-brand-600/25">
+                            新增目標
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 完勝慶祝 Canvas 特效 -->
+        <canvas id="confetti-canvas" class="pointer-events-none fixed inset-0 z-50 w-full h-full"></canvas>
+
+        <!-- 提示訊息 Toast -->
+        <div id="toast-message" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl bg-slate-900/90 text-white text-xs font-medium backdrop-blur-md border border-slate-700 shadow-xl opacity-0 transition-opacity pointer-events-none">
+            提示訊息
+        </div>
+    </div>
+
+    <script>
+        /**
+         * PWA 規範整合：動態生成 SVG Data URI Icon, Dynamic Web Manifest, & Service Worker
+         */
+        (function setupPWA() {
+            // 1. 產生極簡鮮明 App Icon SVG (Data URI)
+            const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+                <rect width="512" height="512" rx="128" fill="#2563eb"/>
+                <path d="M140 256 L220 336 L372 176" fill="none" stroke="#ffffff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>`;
+            const iconDataUri = 'data:image/svg+xml;base64,' + btoa(iconSvg);
+
+            // 設定 favicon & apple-touch-icon
+            const favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            favicon.href = iconDataUri;
+            document.head.appendChild(favicon);
+
+            const appleIcon = document.createElement('link');
+            appleIcon.rel = 'apple-touch-icon';
+            appleIcon.href = iconDataUri;
+            document.head.appendChild(appleIcon);
+
+            // 2. 動態生成 Web App Manifest Blob 並注入 <head>
+            const manifestObj = {
+                name: "目標手帳 Pro",
+                short_name: "目標手帳",
+                description: "個人每日目標打卡與反思手帳",
+                start_url: "./",
+                display: "standalone",
+                background_color: "#0f172a",
+                theme_color: "#2563eb",
+                icons: [
+                    { src: iconDataUri, sizes: "192x192", type: "image/svg+xml" },
+                    { src: iconDataUri, sizes: "512x512", type: "image/svg+xml" }
+                ]
+            };
+            const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
+            const manifestUrl = URL.createObjectURL(manifestBlob);
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = manifestUrl;
+            document.head.appendChild(manifestLink);
+
+            // 3. 註冊內聯 Service Worker (用於離線快取支援)
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    const CACHE_NAME = 'goal-tracker-v1';
+                    self.addEventListener('install', (e) => {
+                        self.skipWaiting();
+                    });
+                    self.addEventListener('activate', (e) => {
+                        e.waitUntil(clients.claim());
+                    });
+                    self.addEventListener('fetch', (e) => {
+                        // 優先網路請求，失敗時提供回應 (離線模式支援)
+                        e.respondWith(
+                            fetch(e.request).catch(() => caches.match(e.request))
+                        );
+                    });
+                `;
+                const swBlob = new Blob([swCode], { type: 'text/javascript' });
+                const swUrl = URL.createObjectURL(swBlob);
+                navigator.serviceWorker.register(swUrl)
+                    .then(() => console.log('PWA Service Worker 註冊成功'))
+                    .catch(err => console.log('SW 註冊忽略:', err));
+            }
+        })();
+
+        // 核心資料庫與狀態控制
+        const STORAGE_KEY_GOALS = 'habit_tracker_goals_v1';
+        const STORAGE_KEY_LOGS = 'habit_tracker_logs_v1';
+        const STORAGE_KEY_THEME = 'habit_tracker_theme';
+
+        // 預設示範目標卡片
+        const DEFAULT_GOALS = [
+            { id: '1', title: '每日閱讀 20 頁書籍', category: '學習', icon: '📖', createdAt: new Date().toISOString() },
+            { id: '2', title: '完成 30 分鐘有氧運動', category: '健康', icon: '🏃', createdAt: new Date().toISOString() },
+            { id: '3', title: '補充 2000cc 水分', category: '生活', icon: '💧', createdAt: new Date().toISOString() },
+            { id: '4', title: '睡前 10 分鐘沉靜冥想', category: '心靈', icon: '🧘', createdAt: new Date().toISOString() }
+        ];
+
+        let state = {
+            goals: [],
+            logs: {}, // 格式: { 'YYYY-MM-DD': { checks: { goalId: true }, reflection: '', mood: '😊' } }
+            currentCategory: '全部',
+            selectedMood: '😊'
+        };
+
+        // 取得今日日期字串 YYYY-MM-DD
+        function getTodayString() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 初始化資料載入
+        function loadState() {
+            try {
+                const savedGoals = localStorage.getItem(STORAGE_KEY_GOALS);
+                state.goals = savedGoals ? JSON.parse(savedGoals) : DEFAULT_GOALS;
+                if (!savedGoals) {
+                    localStorage.setItem(STORAGE_KEY_GOALS, JSON.stringify(DEFAULT_GOALS));
+                }
+
+                const savedLogs = localStorage.getItem(STORAGE_KEY_LOGS);
+                state.logs = savedLogs ? JSON.parse(savedLogs) : {};
+
+                // 確保今日日誌物件存在
+                const today = getTodayString();
+                if (!state.logs[today]) {
+                    state.logs[today] = { checks: {}, reflection: '', mood: '😊' };
+                }
+            } catch (e) {
+                console.error("Storage error:", e);
+                state.goals = DEFAULT_GOALS;
+            }
+        }
+
+        function saveGoals() {
+            localStorage.setItem(STORAGE_KEY_GOALS, JSON.stringify(state.goals));
+        }
+
+        function saveLogs() {
+            localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(state.logs));
+        }
+
+        // 連續打卡天數（Streak）計算邏輯
+        function calculateStreak() {
+            let streak = 0;
+            let checkDate = new Date();
+            const todayStr = getTodayString();
+
+            // 若今天尚未打卡，先從昨天開始檢查
+            const todayChecks = state.logs[todayStr]?.checks || {};
+            const todayHasAnyCheck = Object.values(todayChecks).some(v => v === true);
+
+            if (!todayHasAnyCheck) {
+                checkDate.setDate(checkDate.getDate() - 1);
+            }
+
+            while (true) {
+                const year = checkDate.getFullYear();
+                const month = String(checkDate.getMonth() + 1).padStart(2, '0');
+                const day = String(checkDate.getDate()).padStart(2, '0');
+                const dateKey = `${year}-${month}-${day}`;
+
+                const dayChecks = state.logs[dateKey]?.checks || {};
+                const checkedCount = Object.values(dayChecks).filter(Boolean).length;
+
+                if (checkedCount > 0) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+            return streak;
+        }
+
+        // 單一目標連打天數計算
+        function calculateGoalStreak(goalId) {
+            let streak = 0;
+            let checkDate = new Date();
+            const todayStr = getTodayString();
+
+            if (!state.logs[todayStr]?.checks?.[goalId]) {
+                checkDate.setDate(checkDate.getDate() - 1);
+            }
+
+            while (true) {
+                const dateKey = checkDate.toISOString().split('T')[0];
+                if (state.logs[dateKey]?.checks?.[goalId]) {
+                    streak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+            return streak;
+        }
+
+        // 畫面渲染總控
+        function renderUI() {
+            const todayStr = getTodayString();
+            const todayLog = state.logs[todayStr] || { checks: {}, reflection: '', mood: '😊' };
+
+            // 1. 渲染日期
+            const dateObj = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('current-date-text').textContent = dateObj.toLocaleDateString('zh-TW', options);
+
+            // 2. 統計進度計算
+            const totalGoals = state.goals.length;
+            const completedGoals = state.goals.filter(g => todayLog.checks[g.id]).length;
+            const rate = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
+
+            document.getElementById('completion-rate-text').textContent = `${rate}%`;
+            document.getElementById('progress-bar').style.width = `${rate}%`;
+            document.getElementById('goals-count-text').textContent = `已完成 ${completedGoals} / ${totalGoals} 個目標`;
+            document.getElementById('streak-count').textContent = calculateStreak();
+
+            // 狀態徽章與文案
+            const badge = document.getElementById('completion-status-badge');
+            if (rate === 100 && totalGoals > 0) {
+                badge.textContent = '🌟 今日完勝';
+                badge.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-400 text-slate-900 font-bold';
+            } else if (rate >= 50) {
+                badge.textContent = '⚡ 成果過半';
+                badge.className = 'text-xs px-2 py-0.5 rounded-full bg-amber-300 text-slate-900 font-bold';
+            } else {
+                badge.textContent = '💪 加油中';
+                badge.className = 'text-xs px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white font-normal';
+            }
+
+            // 3. 渲染分類頁籤
+            renderCategoryFilters();
+
+            // 4. 渲染目標卡片清單
+            renderGoalCards(todayLog);
+
+            // 5. 渲染今日反思
+            document.getElementById('daily-reflection-input').value = todayLog.reflection || '';
+            highlightSelectedMood(todayLog.mood || '😊');
+        }
+
+        // 渲染分類頁籤
+        function renderCategoryFilters() {
+            const categories = ['全部', '健康', '學習', '工作', '生活', '心靈'];
+            const container = document.getElementById('category-filters');
+            container.innerHTML = '';
+
+            categories.forEach(cat => {
+                const isSelected = state.currentCategory === cat;
+                const btn = document.createElement('button');
+                btn.className = `btn-touch px-3.5 py-1.5 rounded-2xl text-xs font-semibold whitespace-nowrap transition ${
+                    isSelected 
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm' 
+                        : 'bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300'
+                }`;
+                btn.textContent = cat;
+                btn.onclick = () => {
+                    state.currentCategory = cat;
+                    document.getElementById('filter-status-label').textContent = cat === '全部' ? '全部目標' : `${cat}領域`;
+                    renderUI();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        // 渲染目標打卡卡片
+        function renderGoalCards(todayLog) {
+            const container = document.getElementById('goals-container');
+            const emptyState = document.getElementById('empty-state');
+            container.innerHTML = '';
+
+            const filteredGoals = state.goals.filter(g => state.currentCategory === '全部' || g.category === state.currentCategory);
+
+            if (filteredGoals.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filteredGoals.forEach(goal => {
+                const isChecked = !!todayLog.checks[goal.id];
+                const goalStreak = calculateGoalStreak(goal.id);
+
+                const card = document.createElement('div');
+                card.className = `glass-card p-4 rounded-3xl border transition-all duration-200 flex items-center justify-between gap-3 shadow-sm ${
+                    isChecked 
+                        ? 'border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/10' 
+                        : 'border-slate-200/80 dark:border-slate-800'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3.5 flex-1 min-w-0">
+                        <div class="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl shrink-0">
+                            ${goal.icon}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-bold text-sm text-slate-800 dark:text-slate-100 truncate ${isChecked ? 'line-through opacity-60' : ''}">
+                                    ${goal.title}
+                                </h4>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
+                                    ${goal.category}
+                                </span>
+                                ${goalStreak > 0 ? `
+                                    <span class="text-[10px] text-amber-500 font-semibold flex items-center gap-0.5">
+                                        🔥 ${goalStreak}天
+                                    </span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- 打卡按鈕 -->
+                        <button onclick="toggleCheck('${goal.id}')" class="btn-touch w-10 h-10 rounded-2xl flex items-center justify-center transition ${
+                            isChecked 
+                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 animate-pop' 
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                        }">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </button>
+                        <!-- 刪除目標選單 -->
+                        <button onclick="deleteGoal('${goal.id}')" class="btn-touch p-2 text-slate-300 dark:text-slate-700 hover:text-rose-500 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 切換打卡狀態 (帶有震動與慶祝動畫)
+        window.toggleCheck = function(goalId) {
+            const todayStr = getTodayString();
+            if (!state.logs[todayStr]) {
+                state.logs[todayStr] = { checks: {}, reflection: '', mood: '😊' };
+            }
+
+            const current = !!state.logs[todayStr].checks[goalId];
+            state.logs[todayStr].checks[goalId] = !current;
+            saveLogs();
+
+            // 觸發觸控震動 (Haptic Feedback)
+            if (navigator.vibrate) {
+                navigator.vibrate([15]);
+            }
+
+            renderUI();
+
+            // 檢查是否今日達成率為 100%
+            const totalGoals = state.goals.length;
+            const completedGoals = state.goals.filter(g => state.logs[todayStr].checks[g.id]).length;
+            if (totalGoals > 0 && completedGoals === totalGoals && !current) {
+                triggerConfetti();
+                showToast("🎉 太棒了！今日目標全部達成！");
+            }
+        };
+
+        // 刪除目標
+        window.deleteGoal = function(goalId) {
+            if (confirm("確定要刪除這個目標嗎？")) {
+                state.goals = state.goals.filter(g => g.id !== goalId);
+                saveGoals();
+                renderUI();
+                showToast("已刪除目標");
+            }
+        };
+
+        // 儲存今日反思
+        document.getElementById('save-reflection-btn').onclick = () => {
+            const todayStr = getTodayString();
+            const note = document.getElementById('daily-reflection-input').value.trim();
+            if (!state.logs[todayStr]) {
+                state.logs[todayStr] = { checks: {}, reflection: '', mood: state.selectedMood };
+            }
+            state.logs[todayStr].reflection = note;
+            state.logs[todayStr].mood = state.selectedMood;
+            saveLogs();
+
+            const toast = document.getElementById('reflection-saved-toast');
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 2000);
+        };
+
+        // 心情選擇器點擊處理
+        document.querySelectorAll('#mood-selector button').forEach(btn => {
+            btn.onclick = () => {
+                const mood = btn.getAttribute('data-mood');
+                state.selectedMood = mood;
+                highlightSelectedMood(mood);
+            };
+        });
+
+        function highlightSelectedMood(selectedMood) {
+            document.querySelectorAll('#mood-selector button').forEach(btn => {
+                if (btn.getAttribute('data-mood') === selectedMood) {
+                    btn.className = 'btn-touch p-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600';
+                } else {
+                    btn.className = 'btn-touch p-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition opacity-60';
+                }
+            });
+        }
+
+        // 新增目標 Modal 操作
+        const addModal = document.getElementById('add-goal-modal');
+        document.getElementById('open-add-modal-btn').onclick = () => addModal.classList.remove('hidden');
+        document.getElementById('close-add-modal-btn').onclick = () => addModal.classList.add('hidden');
+        document.getElementById('cancel-add-modal-btn').onclick = () => addModal.classList.add('hidden');
+
+        document.getElementById('add-goal-form').onsubmit = (e) => {
+            e.preventDefault();
+            const title = document.getElementById('goal-title-input').value.trim();
+            const category = document.getElementById('goal-category-select').value;
+            const icon = document.getElementById('goal-icon-select').value;
+
+            if (!title) return;
+
+            const newGoal = {
+                id: Date.now().toString(),
+                title,
+                category,
+                icon,
+                createdAt: new Date().toISOString()
+            };
+
+            state.goals.push(newGoal);
+            saveGoals();
+            document.getElementById('goal-title-input').value = '';
+            addModal.classList.add('hidden');
+            renderUI();
+            showToast("成功建立新目標！");
+        };
+
+        // 深色模式切換邏輯
+        const themeBtn = document.getElementById('theme-toggle-btn');
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            }
+        }
+
+        themeBtn.onclick = () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem(STORAGE_KEY_THEME, isDark ? 'dark' : 'light');
+            sunIcon.classList.toggle('hidden', !isDark);
+            moonIcon.classList.toggle('hidden', isDark);
+        };
+
+        // 歷史日誌檢視
+        const historyModal = document.getElementById('history-modal');
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.onclick = () => {
+                const tab = btn.getAttribute('data-tab');
+                if (tab === 'history') {
+                    renderHistoryList();
+                    historyModal.classList.remove('hidden');
+                } else {
+                    historyModal.classList.add('hidden');
+                }
+            };
+        });
+
+        document.getElementById('close-history-btn').onclick = () => historyModal.classList.add('hidden');
+
+        function renderHistoryList() {
+            const container = document.getElementById('history-list-container');
+            container.innerHTML = '';
+
+            const dates = Object.keys(state.logs).sort().reverse();
+
+            if (dates.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">尚無歷史紀錄</p>`;
+                return;
+            }
+
+            dates.forEach(dateStr => {
+                const log = state.logs[dateStr];
+                const checkedCount = Object.values(log.checks || {}).filter(Boolean).length;
+                if (checkedCount === 0 && !log.reflection) return;
+
+                const item = document.createElement('div');
+                item.className = 'p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800 space-y-1.5';
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200">${dateStr} ${log.mood || '😊'}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold">
+                            達成 ${checkedCount} 個目標
+                        </span>
+                    </div>
+                    ${log.reflection ? `<p class="text-xs text-slate-600 dark:text-slate-400 italic">「${log.reflection}」</p>` : ''}
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // 完勝五彩紙屑 Confetti 動畫特效
+        function triggerConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const particles = Array.from({ length: 60 }).map(() => ({
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                vx: (Math.random() - 0.5) * 12,
+                vy: (Math.random() - 0.7) * 12,
+                size: Math.random() * 8 + 4,
+                color: ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'][Math.floor(Math.random() * 5)],
+                alpha: 1
+            }));
+
+            let frame = 0;
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.25; // 重力
+                    p.alpha -= 0.015;
+                    ctx.globalAlpha = Math.max(0, p.alpha);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                });
+
+                frame++;
+                if (frame < 80) {
+                    requestAnimationFrame(animate);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            animate();
+        }
+
+        // 顯示提示浮籤 Toast
+        function showToast(msg) {
+            const toast = document.getElementById('toast-message');
+            toast.textContent = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 2500);
+        }
+
+        // PWA 安裝提示 (beforeinstallprompt)
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('pwa-install-btn');
+            installBtn.classList.remove('hidden');
+            installBtn.onclick = () => {
+                installBtn.classList.add('hidden');
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    deferredPrompt = null;
+                });
+            };
+        });
+
+        // 應用程式初始化進入點
+        window.onload = function() {
+            initTheme();
+            loadState();
+            renderUI();
+        };
+    </script>
+</body>
+</html>
